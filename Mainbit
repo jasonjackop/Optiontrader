@@ -1,0 +1,48 @@
+import datetime as dt
+import time
+import logging
+import random
+import sys
+import numpy as np
+
+from optibook.synchronous_client import Exchange
+
+
+from math import floor, ceil
+from black_scholes import call_value, put_value, call_delta, put_delta, call_vega, put_vega
+from libs import calculate_current_time_to_date
+
+sys.path.append("/option_quoter/Dynamic_Delta.py")
+
+from Dynamic_Delta import EuropeanCall, EuropeanPut
+
+exchange = Exchange()
+exchange.connect()
+
+logging.getLogger('client').setLevel('ERROR')
+
+STOCK_ID = 'BMW'
+
+
+OPTIONS = [
+    {'id': 'BMW-2021_12_10-050C', 'expiry_date': dt.datetime(2021, 12, 10, 12, 0, 0), 'strike': 50, 'callput': 'call'},
+    {'id': 'BMW-2021_12_10-075C', 'expiry_date': dt.datetime(2021, 12, 10, 12, 0, 0), 'strike': 75, 'callput': 'call'},
+    {'id': 'BMW-2021_12_10-100C', 'expiry_date': dt.datetime(2021, 12, 10, 12, 0, 0), 'strike': 100, 'callput': 'call'},
+
+    {'id': 'BMW-2021_12_10-050P', 'expiry_date': dt.datetime(2021, 12, 10, 12, 0, 0), 'strike': 50, 'callput': 'put'},
+    {'id': 'BMW-2021_12_10-075P', 'expiry_date': dt.datetime(2021, 12, 10, 12, 0, 0), 'strike': 75, 'callput': 'put'},
+    {'id': 'BMW-2021_12_10-100P', 'expiry_date': dt.datetime(2021, 12, 10, 12, 0, 0), 'strike': 100, 'callput': 'put'},
+    
+    {'id': 'BMW-2022_01_14-050C', 'expiry_date': dt.datetime(2022,  1, 14, 12, 0, 0), 'strike': 50, 'callput': 'call'},
+    {'id': 'BMW-2022_01_14-075C', 'expiry_date': dt.datetime(2022,  1, 14, 12, 0, 0), 'strike': 75, 'callput': 'call'},
+    {'id': 'BMW-2022_01_14-100C', 'expiry_date': dt.datetime(2022,  1, 14, 12, 0, 0), 'strike': 100, 'callput': 'call'},
+    
+    {'id': 'BMW-2022_01_14-050P', 'expiry_date': dt.datetime(2022,  1, 14, 12, 0, 0), 'strike': 50, 'callput': 'put'},
+    {'id': 'BMW-2022_01_14-075P', 'expiry_date': dt.datetime(2022,  1, 14, 12, 0, 0), 'strike': 75, 'callput': 'put'},
+    {'id': 'BMW-2022_01_14-100P', 'expiry_date': dt.datetime(2022,  1, 14, 12, 0, 0), 'strike': 100, 'callput': 'put'},
+]
+
+
+while True:
+    for option in OPTIONS:
+        
