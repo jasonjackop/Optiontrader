@@ -70,7 +70,7 @@ while True:
             callgreeklist.append(np.array([info.call_delta, info.call_gamma, info.call_vega]))
             print(callgreeklist)
         if option['callput'] == 'put':
-            info = EuropeanCall(asset_price,3,option['strike'],calculate_current_time_to_date(option['expiry_date']),0)
-            putgreeklist.append(np.array([info.call_delta, info.call_gamma, info.call_vega]))
+            info = EuropeanPut(asset_price,3,option['strike'],calculate_current_time_to_date(option['expiry_date']),0)
+            putgreeklist.append(np.array([info.put_delta, info.put_gamma, info.put_vega]))
             print(putgreeklist)
     time.sleep(5)
