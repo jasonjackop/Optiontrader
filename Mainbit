@@ -266,7 +266,7 @@ while True:
                 option_id=option['id'],
                 theoretical_price=theoretical_value,
                 credit=credit,
-                volume=5,
+                volume=20,
                 position_limit=100,
                 tick_size=0.10)
         time.sleep(0.15)
@@ -295,7 +295,7 @@ while True:
         book1 = exchange.get_last_price_book('BMW-2022_01_14-050P')
         
         for i in range(1):
-            if not book.bids[0] or not book.asks[0] or not book1.bids[0] or not book1.asks[0]:
+            if not book.bids or not book.asks or not book1.bids or not book1.asks:
                 continue
             else:
                 slapeloze = book.bids[0].price
@@ -304,10 +304,11 @@ while True:
                 nachten1 = book1.asks[0].price
         
         count = 0
+        ratio = int(w[0]/w[1])
         for i in w:
             count += 1
-            if abs(i) < 40:
-                if i > 1:
+            if i > 1:
+                if i < 10:
                     if count == 1 and not trade_would_breach_position_limit( 'BMW-2021_12_10-050C', abs(int(i)), 'bid'):
                         exchange.insert_order(
                             instrument_id='BMW-2021_12_10-050C',
@@ -315,15 +316,31 @@ while True:
                             volume= abs(int(i)),
                             side='bid',
                             order_type='ioc')
-                    elif not trade_would_breach_position_limit('BMW-2022_01_14-050P', abs(int(i)), 'bid'):
+                    if count == 2 and not trade_would_breach_position_limit('BMW-2022_01_14-050P', abs(int(i)), 'bid'):
                         exchange.insert_order(
                             instrument_id='BMW-2022_01_14-050P',
                             price=nachten1,
                             volume=abs(int(i)),
                             side='bid',
                             order_type='ioc')
+                else:
+                    if count == 1 and not trade_would_breach_position_limit( 'BMW-2021_12_10-050C', abs(ratio), 'bid'):
+                        exchange.insert_order(
+                            instrument_id='BMW-2021_12_10-050C',
+                            price=nachten,
+                            volume= abs(ratio),
+                            side='bid',
+                            order_type='ioc')
+                    if count == 2 and not trade_would_breach_position_limit('BMW-2022_01_14-050P', 1, 'bid'):
+                        exchange.insert_order(
+                            instrument_id='BMW-2022_01_14-050P',
+                            price=nachten1,
+                            volume= 1,
+                            side='bid',
+                            order_type='ioc')                        
                 
-                elif i < -1 :    
+            elif i < -1 :
+                if i > -10:
                     if count == 1 and not trade_would_breach_position_limit('BMW-2021_12_10-050C', abs(int(i)), 'ask') :
                         exchange.insert_order(
                             instrument_id='BMW-2021_12_10-050C',
@@ -331,15 +348,29 @@ while True:
                             volume=abs(int(i)),
                             side='ask',
                             order_type='ioc')
-                    elif not trade_would_breach_position_limit('BMW-2022_01_14-050P', abs(int(i)), 'ask'):
+                    if count == 2 and not trade_would_breach_position_limit('BMW-2022_01_14-050P', abs(int(i)), 'ask'):
                         exchange.insert_order(
                             instrument_id='BMW-2022_01_14-050P',
                             price=slapeloze1,
                             volume=abs(int(i)),
                             side='ask',
                             order_type='ioc')
-            else:
-                print('hedge requirement too large, skipped')
+                else:
+                    if count == 1 and not trade_would_breach_position_limit('BMW-2021_12_10-050C', abs(ratio), 'ask') :
+                        exchange.insert_order(
+                            instrument_id='BMW-2021_12_10-050C',
+                            price=slapeloze,
+                            volume=abs(ratio),
+                            side='ask',
+                            order_type='ioc')
+                    if count == 2 and not trade_would_breach_position_limit('BMW-2022_01_14-050P', 1, 'ask'):
+                        exchange.insert_order(
+                            instrument_id='BMW-2022_01_14-050P',
+                            price=slapeloze1,
+                            volume=1,
+                            side='ask',
+                            order_type='ioc')
+
             time.sleep(0.15)
         
         
