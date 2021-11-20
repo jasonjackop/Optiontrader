@@ -59,18 +59,23 @@ OPTIONS = [
 
 
 while True:
-    callgreeklist = []
-    putgreeklist = []
+    callgreeklist = np.array([])
+    putgreeklist = np.array([])
     
     asset_price = get_midpoint_value('BMW')
     
     for option in OPTIONS:
         if option['callput'] == 'call':
             info = EuropeanCall(asset_price,3,option['strike'],calculate_current_time_to_date(option['expiry_date']),0)
-            callgreeklist.append(np.array([info.call_delta, info.call_gamma, info.call_vega]))
-            print(callgreeklist)
+            callgreeklist = np.append(callgreeklist, np.array([info.delta, info.gamma, info.vega]))
+            print(info.price)
+
         if option['callput'] == 'put':
             info = EuropeanPut(asset_price,3,option['strike'],calculate_current_time_to_date(option['expiry_date']),0)
-            putgreeklist.append(np.array([info.put_delta, info.put_gamma, info.put_vega]))
-            print(putgreeklist)
+            putgreeklist= np.append(putgreeklist, np.array([info.delta, info.gamma, info.vega]))
+            print(info.price)
+    x = np.split(callgreeklist,6)
+    y = np.split(putgreeklist,6)
+    print(y[0])
+    
     time.sleep(5)
