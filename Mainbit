@@ -9,7 +9,6 @@ from optibook.synchronous_client import Exchange
 
 
 from math import floor, ceil
-from black_scholes import call_value, put_value, call_delta, put_delta, call_vega, put_vega
 from libs import calculate_current_time_to_date
 
 sys.path.append("/option_quoter/Dynamic_Delta.py")
@@ -20,6 +19,19 @@ exchange = Exchange()
 exchange.connect()
 
 logging.getLogger('client').setLevel('ERROR')
+
+def round_down_to_tick(price, tick_size):
+    """
+    Rounds a price down to the nearest tick, e.g. if the tick size is 0.10, a price of 0.97 will get rounded to 0.90.
+    """
+    return floor(price / tick_size) * tick_size
+
+
+def round_up_to_tick(price, tick_size):
+    """
+    Rounds a price up to the nearest tick, e.g. if the tick size is 0.10, a price of 1.34 will get rounded to 1.40.
+    """
+    return ceil(price / tick_size) * tick_size
 
 def get_midpoint_value(instrument_id):
     """
@@ -36,8 +48,96 @@ def get_midpoint_value(instrument_id):
         print("midpoint:", midpoint)
         return midpoint
 
-STOCK_ID = 'BMW'
 
+def update_quotes(option_id, theoretical_price, credit, volume, position_limit, tick_size):
+    """
+    This function updates the quotes specified by <option_id>. We take the following actions in sequence:
+        - pull (remove) any current oustanding orders
+        - add credit to theoretical price and round to nearest tick size to create a set of bid/ask quotes
+        - calculate max volumes to insert as to not pass the position_limit
+        - reinsert limit orders on those levels
+
+    Arguments:
+        option_id: str           -  Exchange Instrument ID of the option to trade
+        theoretical_price: float -  Price to quote around
+        credit: float            -  Difference to subtract from/add to theoretical price to come to final bid/ask price
+        volume:                  -  Volume (# lots) of the inserted orders (given they do not breach position limits)
+        position_limit: int      -  Position limit (long/short) to avoid crossing
+        tick_size: float         -  Tick size of the quoted instrument
+    """
+
+    # Print any new trades
+    trades = exchange.poll_new_trades(instrument_id=option_id)
+    for trade in trades:
+        print(f'- Last period, traded {trade.volume} lots in {option_id} at price {trade.price:.2f}, side {trade.side}.')
+
+    # Pull (remove) all existing outstanding orders
+    orders = exchange.get_outstanding_orders(instrument_id=option_id)
+    for order_id, order in orders.items():
+        print(f'- Deleting old {order.side} order in {option_id} for {order.volume} @ {order.price:8.2f}.')
+        exchange.delete_order(instrument_id=option_id, order_id=order_id)
+
+    # Calculate bid and ask price
+    bid_price = round_down_to_tick(theoretical_price - credit, tick_size)
+    ask_price = round_up_to_tick(theoretical_price + credit, tick_size)
+
+    # Calculate bid and ask volumes, taking into account the provided position_limit
+    position = exchange.get_positions()[option_id]
+
+    max_volume_to_buy = position_limit - position
+    max_volume_to_sell = position_limit + position
+
+    bid_volume = min(volume, max_volume_to_buy)
+    ask_volume = min(volume, max_volume_to_sell)
+
+    # Insert new limit orders
+    if bid_volume > 0:
+        print(f'- Inserting bid limit order in {option_id} for {bid_volume} @ {bid_price:8.2f}.')
+        exchange.insert_order(
+            instrument_id=option_id,
+            price=bid_price,
+            volume=bid_volume,
+            side='bid',
+            order_type='limit',
+        )
+    if ask_volume > 0:
+        print(f'- Inserting ask limit order in {option_id} for {ask_volume} @ {ask_price:8.2f}.')
+        exchange.insert_order(
+            instrument_id=option_id,
+            price=ask_price,
+            volume=ask_volume,
+            side='ask',
+            order_type='limit',
+        )
+
+def triplegreekhedge(option, stock_value):
+    positions = exchange.get_positions()
+    
+    totaldelta = 0
+    totalgamma = 0
+    totalvega = 0
+    
+    stockpos = positions['BMW']
+    
+    for x in option:
+        position = positions[x['id']]
+        if x['callput'] == 'call':
+            info = EuropeanCall(stock_value, 3, x['strike'], calculate_current_time_to_date(x['expiry_date']), 0)
+            totaldelta += position * info.delta
+            totalgamma += position * info.gamma
+            totalvega += position * info.vega
+        elif x['callput'] == 'put':
+            info = EuropeanPut(stock_value, 3, x['strike'], calculate_current_time_to_date(x['expiry_date']), 0)
+            totaldelta += position * info.delta
+            totalgamma += position * info.gamma
+            totalvega += position * info.vega
+    
+    greekexposure = np.array([totaldelta + stockpos, totalgamma, totalvega])
+    
+    optionexposure = np.array([totalgamma, totalvega])
+    
+    return optionexposure
+    
 
 OPTIONS = [
     {'id': 'BMW-2021_12_10-050C', 'expiry_date': dt.datetime(2021, 12, 10, 12, 0, 0), 'strike': 50, 'callput': 'call'},
@@ -59,23 +159,42 @@ OPTIONS = [
 
 
 while True:
-    callgreeklist = np.array([])
-    putgreeklist = np.array([])
+    greeklist = np.array([])
+    optiongreeklist = np.array([])
     
     asset_price = get_midpoint_value('BMW')
     
     for option in OPTIONS:
         if option['callput'] == 'call':
             info = EuropeanCall(asset_price,3,option['strike'],calculate_current_time_to_date(option['expiry_date']),0)
-            callgreeklist = np.append(callgreeklist, np.array([info.delta, info.gamma, info.vega]))
-            print(info.price)
+            greeklist = np.append(greeklist, np.array([info.delta, info.gamma, info.vega]))
+            optiongreeklist = np.append(optiongreeklist, np.array(([info.gamma, info.vega])))
+            theoretical_value = info.price
 
         if option['callput'] == 'put':
             info = EuropeanPut(asset_price,3,option['strike'],calculate_current_time_to_date(option['expiry_date']),0)
-            putgreeklist= np.append(putgreeklist, np.array([info.delta, info.gamma, info.vega]))
-            print(info.price)
-    x = np.split(callgreeklist,6)
-    y = np.split(putgreeklist,6)
-    print(y[0])
+            greeklist= np.append(greeklist, np.array([info.delta, info.gamma, info.vega]))
+            optiongreeklist = np.append(optiongreeklist, np.array(([info.gamma, info.vega])))
+            theoretical_value = info.price
+    
+    ogl = np.array([])
+    for i in range(0,12):
+        ogl = np.append(ogl, np.append(np.split(optiongreeklist,12)[i]), np.array([0,0,0,0,0,0,0,0,0,0]))
+        
+
+    print(ogl)
+    
+    inv = np.linalg.inv(ogl)
+    w = np.dot(inv, triplegreekhedge(OPTIONS, asset_price))
+    
+    print(w)
+
+    update_quotes(option_id=option['id'],
+                      theoretical_price=theoretical_value,
+                      credit=0.1,
+                      volume=1,
+                      position_limit=100,
+                      tick_size=0.10)
+    
     
     time.sleep(5)
